@@ -216,3 +216,35 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+
+# =========================================================================
+# FoxGuard Security - DevSecOps & Cloud Infrastructure (Terraform & GCP)
+# =========================================================================
+
+# Block local Terraform execution directories and plug-in caches
+.terraform/
+
+# Block local Terraform state tracking files (Crucial: these can leak secrets!)
+*.tfstate
+*.tfstate.*
+
+# Block crash logs in case a Terraform deployment fails locally
+crash.log
+crash.*.log
+
+# Block Terraform sensitive variables files where Ryan might store keys
+*.tfvars
+*.tfvars.json
+
+# Block any backup or override configurations
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Block any miscellaneous plain text secret dumps or private keys
+secret.txt
+*.pem
+*.key
