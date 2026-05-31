@@ -35,6 +35,7 @@ from functools import wraps
 
 from flask import (
     Flask,
+    abort,
     flash,
     g,
     redirect,
@@ -91,6 +92,16 @@ def close_db(exception=None):
     db = g.pop("db", None)
     if db is not None:
         db.close()
+
+
+def get_ticket_or_404(ticket_id):
+    """Fetch a single ticket by id, or abort with 404 if it doesn't exist."""
+    ticket = get_db().execute(
+        "SELECT * FROM tickets WHERE id = ?", (ticket_id,)
+    ).fetchone()
+    if ticket is None:
+        abort(404)
+    return ticket
 
 
 def init_db():
@@ -253,6 +264,112 @@ def create_ticket():
         severities=TICKET_SEVERITIES,
         statuses=TICKET_STATUSES,
     )
+
+
+@app.route("/tickets/<int:ticket_id>")
+@login_required
+def ticket_detail(ticket_id):
+    """Ticket detail view: show one ticket and the management controls."""
+    ticket = get_ticket_or_404(ticket_id)
+    return render_template(
+        "ticket_detail.html",
+        ticket=ticket,
+        statuses=TICKET_STATUSES,
+    )
+
+
+@app.route("/tickets/<int:ticket_id>/status", methods=["POST"])
+@login_required
+def update_status(ticket_id):
+    """Quick status change (e.g. mark a ticket Resolved) from the detail page.
+
+    This is the "Ticket status updates" feature from the one-pager: change an
+    existing ticket's status without editing the rest of its fields.
+    """
+    get_ticket_or_404(ticket_id)  # 404 if it doesn't exist
+    status = request.form.get("status", "")
+
+    if status not in TICKET_STATUSES:
+        flash("Invalid status.", "danger")
+        return redirect(url_for("ticket_detail", ticket_id=ticket_id))
+
+    db = get_db()
+    db.execute(
+        "UPDATE tickets SET status = ?, updated_at = ? WHERE id = ?",
+        (status, datetime.utcnow().isoformat(timespec="seconds"), ticket_id),
+    )
+    db.commit()
+    flash(f"Ticket #{ticket_id} marked as {status}.", "success")
+    return redirect(url_for("ticket_detail", ticket_id=ticket_id))
+
+
+@app.route("/tickets/<int:ticket_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_ticket(ticket_id):
+    """Administrative ticket management: edit any field of an existing ticket."""
+    ticket = get_ticket_or_404(ticket_id)
+
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        description = request.form.get("description", "").strip()
+        severity = request.form.get("severity", "Low")
+        status = request.form.get("status", "Open")
+
+        # Same server-side validation as creation.
+        errors = []
+        if not title:
+            errors.append("Title is required.")
+        if severity not in TICKET_SEVERITIES:
+            errors.append("Invalid severity.")
+        if status not in TICKET_STATUSES:
+            errors.append("Invalid status.")
+
+        if errors:
+            for message in errors:
+                flash(message, "danger")
+            return render_template(
+                "edit_ticket.html",
+                ticket=ticket,
+                severities=TICKET_SEVERITIES,
+                statuses=TICKET_STATUSES,
+            ), 400
+
+        db = get_db()
+        db.execute(
+            """UPDATE tickets
+                   SET title = ?, description = ?, severity = ?, status = ?, updated_at = ?
+                 WHERE id = ?""",
+            (
+                title,
+                description,
+                severity,
+                status,
+                datetime.utcnow().isoformat(timespec="seconds"),
+                ticket_id,
+            ),
+        )
+        db.commit()
+        flash(f"Ticket #{ticket_id} updated.", "success")
+        return redirect(url_for("ticket_detail", ticket_id=ticket_id))
+
+    return render_template(
+        "edit_ticket.html",
+        ticket=ticket,
+        severities=TICKET_SEVERITIES,
+        statuses=TICKET_STATUSES,
+    )
+
+
+@app.route("/tickets/<int:ticket_id>/delete", methods=["POST"])
+@login_required
+def delete_ticket(ticket_id):
+    """Administrative ticket management: delete a ticket."""
+    get_ticket_or_404(ticket_id)
+    db = get_db()
+    db.execute("DELETE FROM tickets WHERE id = ?", (ticket_id,))
+    db.commit()
+    flash(f"Ticket #{ticket_id} deleted.", "info")
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/healthz")

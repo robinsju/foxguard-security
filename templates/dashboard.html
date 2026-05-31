@@ -25,7 +25,8 @@
       <tr>
         <td>{{ ticket['id'] }}</td>
         <td>
-          <div class="fw-semibold">{{ ticket['title'] }}</div>
+          <a class="fw-semibold text-decoration-none"
+             href="{{ url_for('ticket_detail', ticket_id=ticket['id']) }}">{{ ticket['title'] }}</a>
           {% if ticket['description'] %}
             <div class="text-muted small">{{ ticket['description'] }}</div>
           {% endif %}

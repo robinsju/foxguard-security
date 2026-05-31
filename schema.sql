@@ -18,5 +18,7 @@ CREATE TABLE IF NOT EXISTS tickets (
     -- status: Open / In Progress / Resolved
     status      TEXT    NOT NULL DEFAULT 'Open',
     created_by  TEXT    NOT NULL,
-    created_at  TEXT    NOT NULL
+    created_at  TEXT    NOT NULL,
+    -- set whenever the ticket is edited or its status changes
+    updated_at  TEXT
 );
