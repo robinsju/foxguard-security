@@ -1,0 +1,41 @@
+/* FoxGuard Security Portal - small custom theme layered on top of Bootstrap.
+   Brand colors: deep slate + fox orange. */
+
+:root {
+  --fg-slate: #1f2933;
+  --fg-orange: #e8590c;
+  --fg-orange-dark: #c44d09;
+}
+
+body {
+  background-color: #f4f6f8;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1 0 auto;
+}
+
+.fg-navbar {
+  background-color: var(--fg-slate);
+}
+
+/* Primary action button in the FoxGuard orange. */
+.fg-btn {
+  background-color: var(--fg-orange);
+  border-color: var(--fg-orange);
+  color: #fff;
+}
+
+.fg-btn:hover,
+.fg-btn:focus {
+  background-color: var(--fg-orange-dark);
+  border-color: var(--fg-orange-dark);
+  color: #fff;
+}
+
+.card {
+  border: none;
+}

@@ -1,0 +1,5 @@
+# FoxGuard Security Portal - Python dependencies
+# Pinned versions keep local, CI, and Cloud Run builds reproducible.
+
+Flask==3.0.3        # web framework (also pulls in Werkzeug for password hashing)
+gunicorn==22.0.0    # production WSGI server used inside the Docker container
