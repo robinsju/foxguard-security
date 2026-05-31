@@ -1,0 +1,14 @@
+name: Snyk SAST Security Scan Placeholder
+
+on:
+  pull_request:
+    branches: [ "develop", "main" ]
+
+jobs:
+  sast-placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Check
+        uses: actions/checkout@v3
+      - name: Placeholder Script
+        run: echo "Future Snyk Static Application Security Testing goes here."
