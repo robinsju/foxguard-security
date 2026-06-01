@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}New Ticket &middot; FoxGuard Security Portal{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <h1 class="h4 mb-3">Create Security Ticket</h1>
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <form method="post" action="{{ url_for('create_ticket') }}">
+          <div class="mb-3">
+            <label for="title" class="form-label">Title <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="title" name="title"
+                   maxlength="120" required autofocus
+                   placeholder="e.g. Suspicious login from unknown IP">
+          </div>
+
+          <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <textarea class="form-control" id="description" name="description" rows="4"
+                      placeholder="What happened, affected systems, any indicators of compromise..."></textarea>
+          </div>
+
+          <div class="row">
+            <div class="col-sm-6 mb-3">
+              <label for="severity" class="form-label">Severity</label>
+              <select class="form-select" id="severity" name="severity">
+                {% for level in severities %}
+                  <option value="{{ level }}" {% if level == 'Low' %}selected{% endif %}>{{ level }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-sm-6 mb-3">
+              <label for="status" class="form-label">Status</label>
+              <select class="form-select" id="status" name="status">
+                {% for state in statuses %}
+                  <option value="{{ state }}" {% if state == 'Open' %}selected{% endif %}>{{ state }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn fg-btn">Create ticket</button>
+            <a class="btn btn-outline-secondary" href="{{ url_for('dashboard') }}">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -248,3 +248,7 @@ override.tf.json
 secret.txt
 *.pem
 *.key
+
+# FoxGuard Flask app - local SQLite database (never commit data)
+*.db
+foxguard.db
