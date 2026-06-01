@@ -3,3 +3,5 @@
 
 Flask==3.0.3        # web framework (also pulls in Werkzeug for password hashing)
 gunicorn==22.0.0    # production WSGI server used inside the Docker container
+PyMySQL==1.1.1
+

@@ -29,7 +29,7 @@ Routes (matches Week 10 issue #17):
 """
 
 import os
-import sqlite3
+import pymysql
 from datetime import datetime
 from functools import wraps
 
@@ -53,7 +53,16 @@ from werkzeug.security import check_password_hash, generate_password_hash
 # The database lives next to this file. DATABASE can be overridden by an
 # environment variable so the container can mount it elsewhere if needed.
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DATABASE = os.environ.get("DATABASE", os.path.join(BASE_DIR, "foxguard.db"))
+
+DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
+DB_USER = os.environ.get("DB_USER", "foxguarduser")
+DB_PASSWORD = os.environ.get("DB_PASSWORD", "FoxGuard123!")
+DB_NAME = os.environ.get("DB_NAME", "foxguard")
+
+
+
+
+
 
 app = Flask(__name__)
 
@@ -72,18 +81,24 @@ TICKET_SEVERITIES = ["Low", "Medium", "High", "Critical"]
 # ---------------------------------------------------------------------------
 
 def get_db():
-    """Return a per-request SQLite connection.
+"""Return a per-request MySQL connection.
 
-    Flask's `g` object lives for the duration of one request, so we reuse
-    the same connection across helper calls and close it automatically in
-    `close_db` below.
-    """
-    if "db" not in g:
-        g.db = sqlite3.connect(DATABASE)
-        # row_factory lets us access columns by name (row["title"]) which
-        # makes the templates much easier to read.
-        g.db.row_factory = sqlite3.Row
-    return g.db
+```
+Flask's `g` object lives for the duration of one request, so we reuse
+the same connection across helper calls and close it automatically in
+`close_db` below.
+"""
+if "db" not in g:
+    g.db = pymysql.connect(
+        host=DB_HOST,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        cursorclass=pymysql.cursors.DictCursor
+    )
+return g.db
+```
+
 
 
 @app.teardown_appcontext
@@ -110,29 +125,39 @@ def init_db():
     Running this on startup means a fresh clone / fresh container "just
     works" with no manual database steps.
     """
-    db = sqlite3.connect(DATABASE)
-    db.row_factory = sqlite3.Row
+    ```
+db = pymysql.connect(
+    host=DB_HOST,
+    user=DB_USER,
+    password=DB_PASSWORD,
+    database=DB_NAME,
+    cursorclass=pymysql.cursors.DictCursor
+)
 
-    # Load the table definitions from schema.sql.
-    with open(os.path.join(BASE_DIR, "schema.sql"), "r", encoding="utf-8") as f:
-        db.executescript(f.read())
+# Seed one analyst account so the team can log in during the demo.
+existing = db.cursor()
+existing.execute(
+    "SELECT id FROM users WHERE username = %s",
+    ("analyst",)
+)
 
-    # Seed one analyst account so the team can log in during the demo.
-    # The password is hashed before it ever touches the database.
-    existing = db.execute(
-        "SELECT id FROM users WHERE username = ?", ("analyst",)
-    ).fetchone()
-    if existing is None:
-        db.execute(
-            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-            # pbkdf2:sha256 is explicitly chosen because it is available on
-            # every Python build (the Werkzeug 3 default, scrypt, needs an
-            # OpenSSL feature that some minimal/container images lack).
-            ("analyst", generate_password_hash("FoxGuard123!", method="pbkdf2:sha256")),
-        )
-        db.commit()
+if existing.fetchone() is None:
+    cursor = db.cursor()
+    cursor.execute(
+        "INSERT INTO users (username, password_hash) VALUES (%s, %s)",
+        (
+            "analyst",
+            generate_password_hash(
+                "FoxGuard123!",
+                method="pbkdf2:sha256"
+            ),
+        ),
+    )
+    db.commit()
 
-    db.close()
+db.close()
+```
+
 
 
 # ---------------------------------------------------------------------------
@@ -379,7 +404,7 @@ def healthz():
     try:
         get_db().execute("SELECT 1")
         return {"status": "ok"}, 200
-    except sqlite3.Error:
+    except pymysql.MySQLError:
         return {"status": "error"}, 500
 
 
