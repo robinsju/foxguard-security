@@ -395,4 +395,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     # debug is on only when FLASK_DEBUG=1 to avoid leaking tracebacks in prod.
     debug = os.environ.get("FLASK_DEBUG") == "1"
-    app.run(host="0.0.0.0", port=port, debug=debug)
+    app.run(host="0.0.0.0", port=8080)
