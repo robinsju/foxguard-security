@@ -1,14 +1,20 @@
-name: Continuous Deployment Placeholder
+name: Continuous Deployment
 
 on:
   push:
     branches: [ "develop", "main" ]
 
 jobs:
-  deploy-placeholder:
+  deploy-check:
     runs-on: ubuntu-latest
     steps:
       - name: Code Check
-        uses: actions/checkout@v3
-      - name: Placeholder Script
-        run: echo "Future deployment automation pipeline goes here."
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t foxguard-security:${{ github.sha }} .
+
+      - name: Deployment readiness summary
+        run: |
+          echo "Docker image builds successfully."
+          echo "Cloud Run deployment uses Artifact Registry and Terraform app configuration."

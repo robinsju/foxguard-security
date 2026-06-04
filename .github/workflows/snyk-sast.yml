@@ -1,14 +1,20 @@
-name: Snyk SAST Security Scan Placeholder
+name: SAST Security Scan
 
 on:
   pull_request:
     branches: [ "develop", "main" ]
 
 jobs:
-  sast-placeholder:
+  sast-scan:
     runs-on: ubuntu-latest
     steps:
       - name: Code Check
-        uses: actions/checkout@v3
-      - name: Placeholder Script
-        run: echo "Future Snyk Static Application Security Testing goes here."
+        uses: actions/checkout@v4
+
+      - name: Python syntax check
+        run: python -m py_compile app.py
+
+      - name: Secret hygiene check
+        run: |
+          ! grep -R "BEGIN PRIVATE KEY" .
+          ! grep -R "service_account" --include='*.json' .

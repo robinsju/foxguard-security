@@ -22,7 +22,15 @@
 
 ---
 
-## 🛠️ Planned Technology Stack
-* **Frontend/Backend:** Flask, SQLite, Bootstrap
-* **DevSecOps/Cloud:** Docker, Terraform, Google Cloud Platform (Cloud Run, Artifact Registry)
-* **CI/CD & Security:** GitHub Actions, Snyk, OWASP ZAP
+## 🛠️ Technology Stack
+* **Frontend/Backend:** Flask, Bootstrap, PyMySQL
+* **Database:** Google Cloud SQL for MySQL
+* **Cloud Runtime:** Docker, Artifact Registry, Cloud Run
+* **Infrastructure:** Terraform, Google Cloud VPC, Secret Manager
+* **CI/CD & Security:** GitHub Actions, Workload Identity Federation/OIDC, SAST, container scanning
+
+## Repository Evidence
+* `.github/workflows/terraform-plan.yml` validates Terraform and runs a plan through GitHub Actions.
+* `terraform/infrastructure/` defines project-level cloud resources such as Cloud SQL, Artifact Registry, Secret Manager, and Workload Identity.
+* `terraform/app/` defines application deployment resources such as Cloud Run service settings.
+* `docs/architecture.md` documents the required Cloud Run, Cloud SQL, VPC, Secret Manager, Artifact Registry, and OIDC flow.

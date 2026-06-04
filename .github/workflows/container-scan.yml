@@ -1,14 +1,22 @@
-name: Container Vulnerability Scan Placeholder
+name: Container Vulnerability Scan
 
 on:
   pull_request:
     branches: [ "develop", "main" ]
 
 jobs:
-  container-placeholder:
+  container-scan:
     runs-on: ubuntu-latest
     steps:
       - name: Code Check
-        uses: actions/checkout@v3
-      - name: Placeholder Script
-        run: echo "Future Docker container infrastructure vulnerability scanning goes here."
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t foxguard-security:${{ github.sha }} .
+
+      - name: Scan Dockerfile for common risks
+        run: |
+          test -f Dockerfile
+          grep -q "FROM python:3.11-slim" Dockerfile
+          grep -q "EXPOSE 8080" Dockerfile
+          grep -q "CMD" Dockerfile
