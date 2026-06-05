@@ -8,13 +8,53 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   terraform-plan:
     runs-on: ubuntu-latest
+    env:
+      TF_VAR_project_id: ${{ vars.TF_VAR_PROJECT_ID }}
+      TF_VAR_region: us-central1
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Terraform Placeholder
-        run: echo "Terraform workflow configured successfully"
+      - name: Authenticate to Google Cloud
+        if: ${{ vars.WIF_PROVIDER != '' && vars.SA_EMAIL != '' && !contains(vars.WIF_PROVIDER, 'pending') && !contains(vars.SA_EMAIL, 'pending') }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.SA_EMAIL }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Validate infrastructure Terraform
+        working-directory: terraform/infrastructure
+        run: |
+          terraform init -backend=false
+          terraform fmt -check
+          terraform validate
+
+      - name: Plan infrastructure Terraform
+        if: ${{ vars.WIF_PROVIDER != '' && vars.SA_EMAIL != '' && !contains(vars.WIF_PROVIDER, 'pending') && !contains(vars.SA_EMAIL, 'pending') }}
+        working-directory: terraform/infrastructure
+        run: terraform plan -input=false
+
+      - name: Validate app Terraform
+        working-directory: terraform/app
+        run: |
+          terraform init -backend=false
+          terraform fmt -check
+          terraform validate
+
+      - name: Plan app Terraform
+        if: ${{ vars.WIF_PROVIDER != '' && vars.SA_EMAIL != '' && !contains(vars.WIF_PROVIDER, 'pending') && !contains(vars.SA_EMAIL, 'pending') }}
+        working-directory: terraform/app
+        run: terraform plan -input=false
