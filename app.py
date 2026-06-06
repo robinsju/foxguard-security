@@ -10,6 +10,7 @@ Manager without hardcoding secrets in source control.
 """
 
 import os
+import secrets
 from datetime import datetime
 from functools import wraps
 
@@ -37,7 +38,66 @@ DB_NAME = os.environ.get("DB_NAME", "foxguard")
 DB_PORT = int(os.environ.get("DB_PORT", "3306"))
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-change-me")
+
+# Session signing key. Use the value injected from the environment (Secret
+# Manager in production); fall back to a strong random key so we never ship a
+# guessable hardcoded default. A random fallback means sessions reset on
+# restart, which is acceptable and far safer than a known constant.
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+
+# Harden the session cookie. Secure defaults to on (Cloud Run serves over
+# HTTPS); set SESSION_COOKIE_SECURE=0 for plain-HTTP local development.
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "1") == "1",
+)
+
+
+@app.after_request
+def set_security_headers(response):
+    """Apply defense-in-depth security headers to every response.
+
+    The CSP intentionally allowlists the jsDelivr CDN because the templates
+    load Bootstrap's CSS/JS from it; everything else is restricted to 'self'.
+    """
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' https://cdn.jsdelivr.net; "
+        "style-src 'self' https://cdn.jsdelivr.net; "
+        "img-src 'self' data:; "
+        "font-src 'self' https://cdn.jsdelivr.net; "
+        "form-action 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self';"
+    )
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=(), payment=()"
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+# Strip the Werkzeug Server header (framework/version disclosure). Werkzeug
+# sets it at the WSGI layer, so after_request cannot override it — middleware
+# intercepts start_response and replaces the value with a generic banner.
+class _HideServerVersion:
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        def _start(status, headers, exc_info=None):
+            headers = [(k, v) for k, v in headers if k.lower() != "server"]
+            headers.append(("Server", "FoxGuard"))
+            return start_response(status, headers, exc_info)
+
+        return self.wsgi_app(environ, _start)
+
+
+app.wsgi_app = _HideServerVersion(app.wsgi_app)
 
 TICKET_STATUSES = ["Open", "In Progress", "Resolved"]
 TICKET_SEVERITIES = ["Low", "Medium", "High", "Critical"]
