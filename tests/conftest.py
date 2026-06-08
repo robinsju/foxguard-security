@@ -1,22 +1,28 @@
 """Test fixtures for the FoxGuard Security Portal.
 
-The application talks to Cloud SQL (MySQL) via PyMySQL through a single
-indirection point — ``app.get_db()`` — which returns a connection exposing
-``cursor()`` (a context manager), ``commit()`` and ``close()``. The tests
-swap that connection for a thin SQLite-backed shim so the full request/route
-logic is exercised without a real MySQL server (works locally and in CI).
+The tests run against a real MySQL database through the same PyMySQL code
+path the application uses in production (Cloud SQL for MySQL) — no alternate
+database engine is substituted. Locally this expects a MySQL server reachable
+via the DB_* environment variables; in CI a MySQL service container provides
+one (see .github/workflows/tests.yml).
 """
 
 import os
-import sqlite3
 import sys
 
+import pymysql
 import pytest
 
-# Must be set before importing the app: skip the real MySQL init at import,
-# and give Flask a deterministic signing key.
+# Must be set before importing the app: skip the real init at import time and
+# give Flask a deterministic signing key. The DB_* values point the app (and
+# this fixture) at the test MySQL instance; CI overrides them via env.
 os.environ["SKIP_DB_INIT"] = "1"
 os.environ["SECRET_KEY"] = "test-secret"
+os.environ.setdefault("DB_HOST", "127.0.0.1")
+os.environ.setdefault("DB_PORT", "3306")
+os.environ.setdefault("DB_USER", "root")
+os.environ.setdefault("DB_PASSWORD", "root")
+os.environ.setdefault("DB_NAME", "foxguard_test")
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -26,84 +32,56 @@ from werkzeug.security import generate_password_hash  # noqa: E402
 DEMO_USER = "analyst"
 DEMO_PASSWORD = "FoxGuard123!"
 
-
-class _FakeCursor:
-    """Mimics a PyMySQL DictCursor on top of an sqlite3 cursor."""
-
-    def __init__(self, sqlite_conn):
-        self._cur = sqlite_conn.cursor()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        self._cur.close()
-        return False
-
-    def execute(self, sql, params=()):
-        # PyMySQL uses %s placeholders; sqlite3 uses ?.
-        self._cur.execute(sql.replace("%s", "?"), tuple(params or ()))
-        return self
-
-    def fetchone(self):
-        row = self._cur.fetchone()
-        return dict(row) if row is not None else None
-
-    def fetchall(self):
-        return [dict(r) for r in self._cur.fetchall()]
+with open(os.path.join(fgapp.BASE_DIR, "schema.sql"), encoding="utf-8") as _f:
+    _SCHEMA = _f.read()
 
 
-class _FakeConn:
-    def __init__(self, sqlite_conn):
-        self._s = sqlite_conn
+def _admin_connection():
+    """A direct MySQL connection used to reset state between tests."""
+    return pymysql.connect(
+        host=fgapp.DB_HOST,
+        port=fgapp.DB_PORT,
+        user=fgapp.DB_USER,
+        password=fgapp.DB_PASSWORD,
+        database=fgapp.DB_NAME,
+        autocommit=True,
+    )
 
-    def cursor(self):
-        return _FakeCursor(self._s)
 
-    def commit(self):
-        self._s.commit()
+@pytest.fixture(autouse=True)
+def reset_database():
+    """Recreate the schema and seed the demo analyst before each test.
 
-    def close(self):  # connection lifecycle is owned by the fixture
-        pass
+    Dropping and recreating the tables gives every test a clean slate and
+    resets AUTO_INCREMENT, so the first ticket created in a test has id 1.
+    """
+    conn = _admin_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SET FOREIGN_KEY_CHECKS = 0")
+            cur.execute("DROP TABLE IF EXISTS tickets")
+            cur.execute("DROP TABLE IF EXISTS users")
+            cur.execute("SET FOREIGN_KEY_CHECKS = 1")
+            for statement in _SCHEMA.split(";"):
+                if statement.strip():
+                    cur.execute(statement)
+            cur.execute(
+                "INSERT INTO users (username, password_hash) VALUES (%s, %s)",
+                (
+                    DEMO_USER,
+                    generate_password_hash(DEMO_PASSWORD, method="pbkdf2:sha256"),
+                ),
+            )
+    finally:
+        conn.close()
+    yield
 
 
 @pytest.fixture
-def client(monkeypatch):
-    sconn = sqlite3.connect(":memory:")
-    sconn.row_factory = sqlite3.Row
-    sconn.executescript(
-        """
-        CREATE TABLE users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL
-        );
-        CREATE TABLE tickets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            description TEXT,
-            severity TEXT NOT NULL DEFAULT 'Low',
-            status TEXT NOT NULL DEFAULT 'Open',
-            created_by TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT
-        );
-        """
-    )
-    sconn.execute(
-        "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-        (DEMO_USER, generate_password_hash(DEMO_PASSWORD, method="pbkdf2:sha256")),
-    )
-    sconn.commit()
-
-    fake = _FakeConn(sconn)
-    # Every data-access helper funnels through get_db(); patch that one point.
-    monkeypatch.setattr(fgapp, "get_db", lambda: fake)
-
+def client():
     fgapp.app.config.update(TESTING=True)
     with fgapp.app.test_client() as c:
         yield c
-    sconn.close()
 
 
 @pytest.fixture

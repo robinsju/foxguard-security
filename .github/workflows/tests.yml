@@ -7,6 +7,32 @@ on:
 jobs:
   pytest:
     runs-on: ubuntu-latest
+
+    # MySQL service container — same engine as Cloud SQL for MySQL, so the
+    # tests exercise the real PyMySQL code path rather than a substitute DB.
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: foxguard_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+
+    env:
+      SKIP_DB_INIT: "1"
+      SECRET_KEY: ci-test
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: foxguard_test
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -14,8 +40,13 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Wait for MySQL
+        run: |
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -P 3306 -uroot -proot --silent; then
+              echo "MySQL is up"; break
+            fi
+            echo "waiting for MySQL..."; sleep 2
+          done
       - name: Run tests
-        env:
-          SKIP_DB_INIT: "1"
-          SECRET_KEY: ci-test
         run: pytest -q
