@@ -8,6 +8,7 @@ one (see .github/workflows/tests.yml).
 """
 
 import os
+import secrets
 import sys
 
 import pymysql
@@ -17,7 +18,7 @@ import pytest
 # give Flask a deterministic signing key. The DB_* values point the app (and
 # this fixture) at the test MySQL instance; CI overrides them via env.
 os.environ["SKIP_DB_INIT"] = "1"
-os.environ["SECRET_KEY"] = "test-secret"
+os.environ.setdefault("SECRET_KEY", secrets.token_hex(16))
 os.environ.setdefault("DB_HOST", "127.0.0.1")
 os.environ.setdefault("DB_PORT", "3306")
 os.environ.setdefault("DB_USER", "root")
@@ -29,8 +30,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 import app as fgapp  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
-DEMO_USER = "analyst"
-DEMO_PASSWORD = "FoxGuard123!"
+DEMO_USER = os.environ.get("TEST_DEMO_USER", "analyst")
+# Generate the test account password at runtime so no secret literal is
+# committed (conftest both seeds and uses it, so the value is irrelevant).
+# This also satisfies SAST "hardcoded password" checks.
+DEMO_PASSWORD = os.environ.get("TEST_DEMO_PASSWORD") or secrets.token_urlsafe(16)
+WRONG_PASSWORD = DEMO_PASSWORD + "-invalid"
 
 with open(os.path.join(fgapp.BASE_DIR, "schema.sql"), encoding="utf-8") as _f:
     _SCHEMA = _f.read()

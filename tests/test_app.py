@@ -1,6 +1,6 @@
 """Route, auth, and ticket-CRUD tests for the FoxGuard Security Portal."""
 
-from conftest import DEMO_PASSWORD, DEMO_USER
+from conftest import DEMO_PASSWORD, DEMO_USER, WRONG_PASSWORD
 
 
 # ── Health ───────────────────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ def test_login_success_redirects_to_dashboard(client):
 def test_login_failure_returns_401(client):
     resp = client.post(
         "/login",
-        data={"username": DEMO_USER, "password": "wrong-password"},
+        data={"username": DEMO_USER, "password": WRONG_PASSWORD},
     )
     assert resp.status_code == 401
     assert b"Invalid username or password" in resp.data
@@ -39,7 +39,7 @@ def test_login_is_not_sql_injectable(client):
     # A classic auth-bypass payload must NOT authenticate (parameterized query).
     resp = client.post(
         "/login",
-        data={"username": "analyst' OR '1'='1", "password": "x"},
+        data={"username": "analyst' OR '1'='1", "password": WRONG_PASSWORD},
     )
     assert resp.status_code == 401
 
