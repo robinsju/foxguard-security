@@ -303,6 +303,8 @@ def validate_ticket(title, severity, status):
     errors = []
     if not title:
         errors.append("Title is required.")
+    elif len(title) > 255:
+        errors.append("Title must be 255 characters or fewer.")
     if severity not in TICKET_SEVERITIES:
         errors.append("Invalid severity.")
     if status not in TICKET_STATUSES:
