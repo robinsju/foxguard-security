@@ -1,0 +1,2 @@
+# Test-only dependencies (not installed in the runtime container)
+pytest==8.2.2
